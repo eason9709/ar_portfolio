@@ -382,10 +382,26 @@ function onCanvasTap(event) {
 
   // AR 模式：若當前還沒放置環形，而 reticle 顯示中 → 將環形放在 reticle 位置
   if (isARMode) {
-    if (!hasPlacedRing && reticle && reticle.visible) {
-      const reticlePosition = new THREE.Vector3();
-      reticle.getWorldPosition(reticlePosition);
-      createProjectRing(reticlePosition);
+    if (!hasPlacedRing) {
+      if (reticle && reticle.visible) {
+        const reticlePosition = new THREE.Vector3();
+        reticle.getWorldPosition(reticlePosition);
+        console.log('[AR] 使用 reticle 位置放置環形：', reticlePosition);
+        createProjectRing(reticlePosition);
+        hasPlacedRing = true;
+        return;
+      }
+
+      // 備案：若裝置沒有提供 hit-test 結果（reticle 永遠不亮），
+      // 就直接在相機前方固定距離生成環形，避免完全無法互動。
+      const camDir = new THREE.Vector3();
+      const camPos = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      camera.getWorldPosition(camPos);
+      const distance = 1.5; // 公尺，環形中心距離相機的距離
+      const fallbackPos = camPos.clone().add(camDir.multiplyScalar(distance));
+      console.log('[AR] 無 reticle，改用相機前方位置放置環形：', fallbackPos);
+      createProjectRing(fallbackPos);
       hasPlacedRing = true;
       return;
     }
