@@ -298,6 +298,8 @@ function createProjectRing(position) {
 
   ring = new THREE.Group();
   ring.name = 'project-ring';
+  // 重要：環形的「中心」要放在點擊/準星位置，否則會一直出現在 AR 原點 (0,0,0) 附近
+  ring.position.set(position.x, position.y, position.z);
 
   const loader = new THREE.TextureLoader();
 
@@ -324,9 +326,10 @@ function createProjectRing(position) {
     });
 
     const plane = new THREE.Mesh(geometry, material);
-    plane.position.set(x, position.y, z);
-    // 讓圖示朝向中心（也就是使用者）
-    plane.lookAt(position);
+    // 圖示在「環形群組」的區域座標：水平圓環上，高度 0（環心在地板）
+    plane.position.set(x, 0, z);
+    // 讓圖示朝向環心（ring 的中心 = 你點擊放環的位置）
+    plane.lookAt(ring.position);
 
     // 把專案相關資料記在 userData，方便點擊時取得
     plane.userData.projectId = project.id;
