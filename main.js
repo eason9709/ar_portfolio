@@ -253,9 +253,22 @@ function onXRFrame(time, frame) {
 
     session.requestReferenceSpace('viewer').then((space) => {
       viewerSpace = space;
-      session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+      // 用「向下」的射線偵測地板：viewer space 的 -Y 是正下方，
+      // 這樣對地時也能偵測到平面（原本朝前射線對地板常失效）
+      const origin = new DOMPoint(0, 0, 0);
+      const direction = new DOMPoint(0, -1, 0);
+      const offsetRay = typeof XRRay !== 'undefined' ? new XRRay(origin, direction) : null;
+
+      const opts = { space: viewerSpace };
+      if (offsetRay) opts.offsetRay = offsetRay;
+
+      session.requestHitTestSource(opts).then((source) => {
         hitTestSource = source;
-        console.log('[AR] hit-test source 建立成功');
+      }).catch((err) => {
+        // 若向下射線失敗，改回預設（朝前射線）
+        session.requestHitTestSource({ space: viewerSpace }).then((src) => {
+          hitTestSource = src;
+        }).catch((e) => console.warn('[AR] hit-test 建立失敗', e));
       });
     }).catch((err) => {
       console.warn('[AR] 建立 hit-test source 失敗：', err);
@@ -264,19 +277,15 @@ function onXRFrame(time, frame) {
 
   if (hitTestSource) {
     const hitTestResults = frame.getHitTestResults(hitTestSource);
-    // 印出前幾幀的結果數量，確認是不是一直都是 0
-    if (time < 5000) {
-      console.log('[AR] hitTestResults length =', hitTestResults.length);
-    }
     if (hitTestResults.length > 0) {
       const hit = hitTestResults[0];
       const pose = hit.getPose(referenceSpace);
-
-      // 使用 pose 的 transform 更新 reticle 的 world matrix
-      const mat = new THREE.Matrix4();
-      mat.fromArray(pose.transform.matrix);
-      reticle.visible = true;
-      reticle.matrix.fromArray(pose.transform.matrix);
+      if (pose) {
+        reticle.visible = true;
+        reticle.matrix.fromArray(pose.transform.matrix);
+      } else {
+        reticle.visible = false;
+      }
     } else {
       reticle.visible = false;
     }
