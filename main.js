@@ -94,26 +94,33 @@ function initThree() {
 // === 啟動 AR Session 與 hit-test ===
 async function startARSession() {
   if (!navigator.xr) {
-    alert('此裝置或瀏覽器尚不支援 WebXR AR。請使用最新的 iOS Safari 或 Android Chrome 並啟用 WebXR。');
+    alert('此裝置或瀏覽器尚不支援 WebXR AR。請使用最新版 Android Chrome 並啟用 WebXR。');
     return;
   }
 
   try {
     isARMode = true;
 
+    console.log('[AR] 準備 requestSession immersive-ar');
     const session = await navigator.xr.requestSession('immersive-ar', {
-      requiredFeatures: ['hit-test', 'local']
+      // 多數支援 ARCore 的 Android Chrome 都支援 local-floor + hit-test
+      requiredFeatures: ['hit-test', 'local-floor'],
+      optionalFeatures: ['dom-overlay'],
+      domOverlay: { root: document.body }
     });
+    console.log('[AR] requestSession 成功，session=', session);
 
     // 將 Session 交給 Three.js 的 WebXRManager
-    renderer.xr.setReferenceSpaceType('local');
+    renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(session);
+    console.log('[AR] renderer.xr.setSession 完成');
 
     // 使用 setAnimationLoop 作為 WebXR 渲染迴圈入口
     renderer.setAnimationLoop(onXRFrame);
 
     // 當 Session 結束時清除狀態
     session.addEventListener('end', () => {
+      console.log('[AR] session end，重置 hit-test 狀態');
       hitTestSourceRequested = false;
       hitTestSource = null;
       viewerSpace = null;
@@ -130,7 +137,7 @@ async function startARSession() {
     if (overlay) overlay.style.display = 'none';
 
   } catch (err) {
-    console.error(err);
+    console.error('[AR] 無法啟動 AR Session：', err);
     alert('無法啟動 AR Session，請確認瀏覽器與權限設定。');
   }
 }
@@ -192,14 +199,19 @@ function onXRFrame(time, frame) {
       viewerSpace = space;
       session.requestHitTestSource({ space: viewerSpace }).then((source) => {
         hitTestSource = source;
+        console.log('[AR] hit-test source 建立成功');
       });
     }).catch((err) => {
-      console.warn('建立 hit-test source 失敗：', err);
+      console.warn('[AR] 建立 hit-test source 失敗：', err);
     });
   }
 
   if (hitTestSource) {
     const hitTestResults = frame.getHitTestResults(hitTestSource);
+    // 印出前幾幀的結果數量，確認是不是一直都是 0
+    if (time < 5000) {
+      console.log('[AR] hitTestResults length =', hitTestResults.length);
+    }
     if (hitTestResults.length > 0) {
       const hit = hitTestResults[0];
       const pose = hit.getPose(referenceSpace);
