@@ -115,6 +115,61 @@ async function startARSession() {
     await renderer.xr.setSession(session);
     console.log('[AR] renderer.xr.setSession 完成');
 
+    // WebXR 輸入：在 AR 模式下使用 XR session 的 select 事件，而不是依賴 DOM click
+    const onXRSelect = () => {
+      if (!isARMode) return;
+
+      // 第一次 select：放置環形（優先用 reticle，其次用相機前方備案）
+      if (!hasPlacedRing) {
+        if (reticle && reticle.visible) {
+          const reticlePosition = new THREE.Vector3();
+          reticle.getWorldPosition(reticlePosition);
+          console.log('[AR] select：使用 reticle 位置放置環形：', reticlePosition);
+          createProjectRing(reticlePosition);
+          hasPlacedRing = true;
+          return;
+        }
+
+        const camDir = new THREE.Vector3();
+        const camPos = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        camera.getWorldPosition(camPos);
+        const distance = 1.5;
+        const fallbackPos = camPos.clone().add(camDir.multiplyScalar(distance));
+        console.log('[AR] select：無 reticle，改用相機前方位置放置環形：', fallbackPos);
+        createProjectRing(fallbackPos);
+        hasPlacedRing = true;
+        return;
+      }
+
+      // 已放置環形之後的 select：用畫面中心的 ray 嘗試選取圖示
+      if (!ring) return;
+      const xrCamera = renderer.xr.getCamera(camera);
+      tapPosition.set(0, 0); // 螢幕中心
+      raycaster.setFromCamera(tapPosition, xrCamera);
+      const intersects = raycaster.intersectObjects(ring.children, true);
+      if (intersects.length > 0) {
+        const hit = intersects[0].object;
+        const projectId = hit.userData.projectId;
+        const projectPdf = hit.userData.projectPdf;
+
+        if (projectId) {
+          console.log('[AR] select 點擊作品：', projectId);
+          gsap.to(hit.scale, {
+            x: 1.2,
+            y: 1.2,
+            z: 1.2,
+            duration: 0.2,
+            yoyo: true,
+            repeat: 1,
+            ease: 'power2.out'
+          });
+          // AR 模式目前不自動打開 PDF，以免跳視窗干擾 AR session
+        }
+      }
+    };
+    session.addEventListener('select', onXRSelect);
+
     // 使用 setAnimationLoop 作為 WebXR 渲染迴圈入口
     renderer.setAnimationLoop(onXRFrame);
 
@@ -130,6 +185,7 @@ async function startARSession() {
       if (reticle) {
         reticle.visible = false;
       }
+      session.removeEventListener('select', onXRSelect);
     });
 
     // 隱藏 UI overlay（按鈕等）
