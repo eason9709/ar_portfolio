@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR 作品集展示 - ar-portfolio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #000;
+      color: #fff;
+    }
+
+    #ui-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.12), transparent 60%);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #title {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+      text-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    }
+
+    #enter-ar-btn {
+      pointer-events: auto;
+      padding: 0.8rem 1.6rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #ff8a00, #e52e71);
+      color: #fff;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    #enter-desktop-btn {
+      pointer-events: auto;
+      padding: 0.6rem 1.4rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      color: #02101f;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+
+    #enter-desktop-btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      filter: brightness(0.95);
+    }
+
+    #enter-ar-btn:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      filter: brightness(0.9);
+    }
+
+    #hint {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      opacity: 0.8;
+      text-align: center;
+    }
+
+    /* 讓 WebGL 畫布鋪滿全螢幕 */
+    canvas.webgl {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui-overlay">
+    <div id="title">AR 作品集展示</div>
+    <button id="enter-ar-btn">進入 AR（手機）</button>
+    <button id="enter-desktop-btn" style="margin-top: 0.5rem;">桌面預覽（電腦）</button>
+    <div id="hint">手機可進入 AR，電腦可使用桌面預覽模式展示作品環。</div>
+  </div>
+
+    <!-- GSAP UMD 版本（使用 CDN），會掛在全域變數 gsap -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"
+            referrerpolicy="no-referrer"></script>
+
+    <!-- 專案資料與主程式 (皆為 ES module) -->
+    <script type="module" src="./projects.js"></script>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
