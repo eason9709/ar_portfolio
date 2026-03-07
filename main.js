@@ -32,7 +32,7 @@ const tapPosition = new THREE.Vector2();
 // 半徑與圖示尺寸（公尺）
 const RING_RADIUS = 1.5;      // AR 模式中的環半徑
 const ICON_SIZE = 0.5;        // AR 模式中圖示邊長
-const AR_RING_HEIGHT = 1.0;   // AR 模式：圖示環的高度（提高到眼睛高度附近）
+const AR_RING_HEIGHT = 0.2;   // AR 模式：圖示環的高度（降低到桌面高度附近）
 const DESKTOP_RADIUS = 2.0;   // 桌面預覽模式的環半徑
 const DESKTOP_ICON_SIZE = 0.7; // 桌面預覽模式中圖示邊長
 
