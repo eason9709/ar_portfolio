@@ -18,6 +18,15 @@ let ring = null;                 // 作品圖示環形群組
 let hasPlacedRing = false;       // 是否已經在地板上放置環形
 let isARMode = false;            // true = WebXR AR 模式；false = 桌面預覽模式
 
+// 文件展示相關
+let documentViewer = null;       // 文件展示群組
+let currentDocPages = [];        // 當前文件的所有頁面
+let currentPageIndex = 0;        // 當前頁碼
+let isViewingDocument = false;   // 是否正在查看文件
+
+// UI 提示相關
+let hasMovedCamera = false;      // 是否已經移動過相機（桌面模式）
+
 // WebXR hit-test 相關（僅在 AR 模式會使用）
 let hitTestSource = null;
 let hitTestSourceRequested = false;
@@ -32,7 +41,7 @@ const tapPosition = new THREE.Vector2();
 // 半徑與圖示尺寸（公尺）
 const RING_RADIUS = 1.5;      // AR 模式中的環半徑
 const ICON_SIZE = 0.5;        // AR 模式中圖示邊長
-const AR_RING_HEIGHT = 0.8;   // AR 模式：圖示環的高度（腰部到胸部之間，方便低頭點擊）
+const AR_RING_HEIGHT = 1.0;   // AR 模式：圖示環的高度（約 1 公尺，方便低頭點擊）
 const DESKTOP_RADIUS = 2.0;   // 桌面預覽模式的環半徑
 const DESKTOP_ICON_SIZE = 0.7; // 桌面預覽模式中圖示邊長
 
@@ -68,6 +77,10 @@ function initThree() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.enablePan = false;
+  controls.enableZoom = true; // 啟用滾輪縮放
+  controls.minDistance = 0.05; // 最小距離（可以靠很近看清楚文字）
+  controls.maxDistance = 2;   // 最大距離（不能太遠）
+  controls.zoomSpeed = 1.5;   // 加快縮放速度
   controls.target.set(0, DESKTOP_HEIGHT, 0);
 
   // 視窗尺寸改變時更新相機與 renderer
@@ -103,6 +116,9 @@ async function startARSession() {
   try {
     isARMode = true;
 
+    // 顯示載入動畫
+    showLoading();
+
     console.log('[AR] 準備 requestSession immersive-ar');
     const session = await navigator.xr.requestSession('immersive-ar', {
       // 多數支援 ARCore 的 Android Chrome 都支援 local-floor + hit-test
@@ -116,6 +132,12 @@ async function startARSession() {
     renderer.xr.setReferenceSpaceType('local-floor');
     await renderer.xr.setSession(session);
     console.log('[AR] renderer.xr.setSession 完成');
+
+    // 隱藏載入動畫
+    hideLoading();
+
+    // 顯示 AR 提示（5 秒後淡出）
+    showARHint();
 
     // WebXR 輸入：在 AR 模式下使用 XR session 的 select 事件
     const onXRSelect = () => {
@@ -142,6 +164,20 @@ async function startARSession() {
       }
 
       // 已放置環形之後的 select：用畫面中心的 ray 嘗試選取圖示
+      if (isViewingDocument) {
+        // 如果正在查看文件，點擊文件圖片才翻頁
+        if (documentViewer) {
+          const xrCamera = renderer.xr.getCamera(camera);
+          tapPosition.set(0, 0);
+          raycaster.setFromCamera(tapPosition, xrCamera);
+          const docIntersects = raycaster.intersectObjects(documentViewer.children, true);
+          if (docIntersects.length > 0) {
+            nextPage();
+          }
+        }
+        return;
+      }
+      
       if (!ring) return;
       const xrCamera = renderer.xr.getCamera(camera);
       tapPosition.set(0, 0); // 螢幕中心
@@ -150,7 +186,7 @@ async function startARSession() {
       if (intersects.length > 0) {
         const hit = intersects[0].object;
         const projectId = hit.userData.projectId;
-        const projectPdf = hit.userData.projectPdf;
+        const projectDocs = hit.userData.projectDocs;
 
         if (projectId) {
           console.log('[AR] select 點擊作品：', projectId);
@@ -163,7 +199,12 @@ async function startARSession() {
             repeat: 1,
             ease: 'power2.out'
           });
-          // AR 模式目前不自動打開 PDF，以免跳視窗干擾 AR session
+          
+          // 如果有文件圖片，顯示文件展示器
+          if (projectDocs && projectDocs.length > 0) {
+            console.log('[AR Document] 開啟文件展示：', projectId);
+            showDocumentViewer(projectDocs, ring.position);
+          }
         }
       }
     };
@@ -209,6 +250,9 @@ function startDesktopDemo() {
   // 在桌面模式下，使用固定座標系的 8 個圖示位置
   createDesktopRing();
 
+  // 顯示桌面提示
+  showDesktopHint();
+
   // 使用 setAnimationLoop 做一般的動畫迴圈（無 XR Session 也可使用）
   renderer.setAnimationLoop(onDesktopFrame);
 }
@@ -217,8 +261,8 @@ function startDesktopDemo() {
 function onDesktopFrame(time) {
   if (ring) {
     // 讓 8 個圖示在半徑 DESKTOP_RADIUS 的水平圓環上繞著你轉（全部朝向圓心）
-    const t = time * 0.0004; // 時間 → 角度偏移
-    const height = 0.75;
+    const t = time * 0.0002; // 時間 → 角度偏移（降低轉速）
+    const height = 0.4;
     const count = ring.children.length || 1;
 
     ring.children.forEach((child, index) => {
@@ -234,6 +278,12 @@ function onDesktopFrame(time) {
   }
   if (controls) {
     controls.update();
+    
+    // 檢測相機是否移動過
+    if (!hasMovedCamera && controls.getAzimuthalAngle() !== 0) {
+      hasMovedCamera = true;
+      hideDesktopHint();
+    }
   }
   renderer.render(scene, camera);
 }
@@ -302,7 +352,7 @@ function onXRFrame(time, frame) {
   // 環形：固定在點擊的位置，圖示繞著環心轉
   if (ring) {
     // ring.position 已經在 createProjectRing 時設定好，不再跟隨手機
-    const t = time * 0.0004; // 時間 → 角度偏移
+    const t = time * 0.0002; // 時間 → 角度偏移（降低轉速）
     const count = ring.children.length || 1;
     const centerWorld = ring.position.clone(); // 環心在世界座標（固定位置）
     ring.children.forEach((child, index) => {
@@ -368,6 +418,7 @@ function createProjectRing(position) {
     plane.userData.projectId = project.id;
     plane.userData.projectTitle = project.title;
     plane.userData.projectPdf = project.pdf;
+    plane.userData.projectDocs = project.docs; // 新增：文件圖片路徑
 
     // 稍微往後傾斜 45 度，讓圖示有俯視感
     plane.rotateX(-Math.PI / 4);
@@ -376,6 +427,268 @@ function createProjectRing(position) {
   });
 
   scene.add(ring);
+}
+
+// === 文件展示功能 ===
+function showDocumentViewer(docPaths, position) {
+  if (!docPaths || docPaths.length === 0) return;
+  
+  // 隱藏圖示環（淡出動畫）
+  if (ring) {
+    ring.children.forEach((child) => {
+      // 遍歷 group 內的所有 mesh
+      child.traverse((obj) => {
+        if (obj.material) {
+          gsap.to(obj.material, {
+            duration: 0.5,
+            opacity: 0
+          });
+        }
+      });
+    });
+    
+    setTimeout(() => {
+      ring.visible = false;
+    }, 500);
+  }
+  
+  isViewingDocument = true;
+  currentDocPages = docPaths;
+  currentPageIndex = 0;
+  
+  // 建立文件展示群組
+  documentViewer = new THREE.Group();
+  
+  // 文件位置：距離環心 RING_RADIUS（與環半徑相同），高度略低 0.2m
+  const docPosition = position.clone();
+  
+  if (isARMode) {
+    // AR 模式：環心前方 RING_RADIUS 距離，高度 = AR_RING_HEIGHT - 0.2
+    docPosition.y = AR_RING_HEIGHT - 0.2;
+    docPosition.z += RING_RADIUS; // 往前移動環半徑距離
+  } else {
+    // 桌面模式：相機前方 DESKTOP_RADIUS 距離，高度略低於環
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const camPos = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
+    docPosition.copy(camPos).add(camDir.multiplyScalar(DESKTOP_RADIUS));
+    docPosition.y = 0.4 - 0.1; // 環高度 0.4，文件略低 0.2
+  }
+  
+  documentViewer.position.copy(docPosition);
+  
+  // 建立文件頁面（A4 比例，0.8m 寬）
+  const pageWidth = 0.8;
+  const pageHeight = pageWidth * 1.414; // A4 比例
+  const pageGeometry = new THREE.PlaneGeometry(pageWidth, pageHeight);
+  
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load(docPaths[0]);
+  texture.encoding = THREE.sRGBEncoding;
+  
+  const pageMaterial = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+  
+  const pageMesh = new THREE.Mesh(pageGeometry, pageMaterial);
+  pageMesh.name = 'documentPage';
+  
+  // 讓文件面向相機
+  if (!isARMode) {
+    pageMesh.lookAt(camera.position);
+  }
+  // 45 度傾斜
+  pageMesh.rotateX(Math.PI / 3);
+  
+  documentViewer.add(pageMesh);
+  scene.add(documentViewer);
+  
+  // 桌面模式：重設相機和 OrbitControls
+  if (!isARMode && controls) {
+    // 重設相機位置：面向文件方向（水平，不低頭）
+    const DESKTOP_HEIGHT = 1;
+    
+    // 先重設 OrbitControls 的 target 到文件位置（水平）
+    controls.target.set(docPosition.x, DESKTOP_HEIGHT, docPosition.z);
+    
+    // 相機在原點
+    camera.position.set(0, DESKTOP_HEIGHT, 0.01);
+    
+    // 強制更新 controls
+    controls.update();
+    
+    console.log('[Document] 重設相機位置和 target，面向文件');
+  }
+  
+  // 顯示翻頁提示
+  showPageHint();
+  
+  console.log('[Document] 顯示文件，共', docPaths.length, '頁');
+}
+
+function nextPage() {
+  if (!isViewingDocument) return;
+  
+  // 輪迴：最後一頁回到第一頁
+  if (currentPageIndex >= currentDocPages.length - 1) {
+    currentPageIndex = 0;
+  } else {
+    currentPageIndex++;
+  }
+  
+  updateDocumentPageWithAnimation();
+}
+
+function previousPage() {
+  if (!isViewingDocument) return;
+  
+  // 輪迴：第一頁回到最後一頁
+  if (currentPageIndex <= 0) {
+    currentPageIndex = currentDocPages.length - 1;
+  } else {
+    currentPageIndex--;
+  }
+  
+  updateDocumentPageWithAnimation();
+}
+
+function updateDocumentPage() {
+  const pageMesh = documentViewer.getObjectByName('documentPage');
+  if (!pageMesh) return;
+  
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load(currentDocPages[currentPageIndex]);
+  texture.encoding = THREE.sRGBEncoding;
+  
+  pageMesh.material.map = texture;
+  pageMesh.material.needsUpdate = true;
+  
+  console.log('[Document] 翻頁至第', currentPageIndex + 1, '/', currentDocPages.length);
+}
+
+function updateDocumentPageWithAnimation() {
+  const pageMesh = documentViewer.getObjectByName('documentPage');
+  if (!pageMesh) return;
+  
+  // 第一次翻頁時隱藏提示
+  hidePageHint();
+  
+  // 翻頁動畫：先縮小淡出，換圖，再放大淡入
+  gsap.to(pageMesh.scale, {
+    x: 0.8,
+    y: 0.8,
+    z: 0.8,
+    duration: 0.2,
+    ease: 'power2.in',
+    onComplete: () => {
+      // 換圖
+      const loader = new THREE.TextureLoader();
+      const texture = loader.load(currentDocPages[currentPageIndex]);
+      texture.encoding = THREE.sRGBEncoding;
+      
+      pageMesh.material.map = texture;
+      pageMesh.material.needsUpdate = true;
+      
+      // 放大淡入
+      gsap.to(pageMesh.scale, {
+        x: 1,
+        y: 1,
+        z: 1,
+        duration: 0.2,
+        ease: 'power2.out'
+      });
+      
+      console.log('[Document] 翻頁至第', currentPageIndex + 1, '/', currentDocPages.length);
+    }
+  });
+}
+
+function closeDocumentViewer() {
+  if (!isViewingDocument) return;
+  
+  // 移除文件展示
+  if (documentViewer) {
+    scene.remove(documentViewer);
+    documentViewer = null;
+  }
+  
+  // 顯示圖示環（淡入動畫）
+  if (ring) {
+    ring.visible = true;
+    ring.children.forEach((child) => {
+      child.traverse((obj) => {
+        if (obj.material) {
+          obj.material.opacity = 0;
+          gsap.to(obj.material, {
+            duration: 0.5,
+            opacity: obj.material.userData.originalOpacity || 1
+          });
+        }
+      });
+    });
+  }
+  
+  // 隱藏翻頁提示
+  hidePageHint();
+  
+  isViewingDocument = false;
+  currentDocPages = [];
+  currentPageIndex = 0;
+  
+  console.log('[Document] 關閉文件展示');
+}
+
+// === UI 提示函數 ===
+function showLoading() {
+  const spinner = document.getElementById('loading-spinner');
+  if (spinner) spinner.style.display = 'block';
+}
+
+function hideLoading() {
+  const spinner = document.getElementById('loading-spinner');
+  if (spinner) spinner.style.display = 'none';
+}
+
+function showDesktopHint() {
+  const hint = document.getElementById('desktop-hint');
+  if (hint) {
+    hint.classList.add('show');
+  }
+}
+
+function hideDesktopHint() {
+  const hint = document.getElementById('desktop-hint');
+  if (hint) {
+    hint.classList.remove('show');
+  }
+}
+
+function showARHint() {
+  const hint = document.getElementById('ar-hint');
+  if (hint) {
+    hint.classList.add('show');
+    // 5 秒後淡出
+    setTimeout(() => {
+      hint.classList.remove('show');
+    }, 5000);
+  }
+}
+
+function showPageHint() {
+  const hint = document.getElementById('page-hint');
+  if (hint) {
+    hint.classList.add('show');
+  }
+}
+
+function hidePageHint() {
+  const hint = document.getElementById('page-hint');
+  if (hint) {
+    hint.classList.remove('show');
+  }
 }
 
 // === 桌面模式專用：在固定位置建立 8 個圖示（照你給的座標，環繞使用者）===
@@ -462,6 +775,7 @@ function createDesktopRing() {
     group.userData.projectId = project.id;
     group.userData.projectTitle = project.title;
     group.userData.projectPdf = project.pdf;
+    group.userData.projectDocs = project.docs; // 新增：文件圖片路徑
 
     ring.add(group);
   });
@@ -502,9 +816,8 @@ function onCanvasTap(event) {
     }
   }
 
-  // 已經放置環形 → 當作選取圖示
-  if (!ring) return;
-
+  // 已經放置環形 → 當作選取圖示或翻頁
+  
   const canvas = renderer.domElement;
   let x, y;
 
@@ -521,20 +834,38 @@ function onCanvasTap(event) {
 
   tapPosition.set(x, y);
 
+  // 如果正在查看文件，點擊文件圖片才翻頁
+  if (isViewingDocument) {
+    if (documentViewer) {
+      raycaster.setFromCamera(tapPosition, camera);
+      const docIntersects = raycaster.intersectObjects(documentViewer.children, true);
+      if (docIntersects.length > 0) {
+        nextPage();
+      }
+    }
+    return;
+  }
+  
+  if (!ring) return;
+
   // 建立從相機出發的 ray，與環形中的所有圖示平面做相交測試
   raycaster.setFromCamera(tapPosition, camera);
   const intersects = raycaster.intersectObjects(ring.children, true);
 
   if (intersects.length > 0) {
     const hit = intersects[0].object;
-    const projectId = hit.userData.projectId;
-    const projectPdf = hit.userData.projectPdf;
+    // userData 可能在 parent (group) 上
+    const parent = hit.parent;
+    const projectId = parent?.userData?.projectId || hit.userData.projectId;
+    const projectDocs = parent?.userData?.projectDocs || hit.userData.projectDocs;
+    const projectPdf = parent?.userData?.projectPdf || hit.userData.projectPdf;
 
     if (projectId) {
       console.log('點擊作品：', projectId);
 
-      // 使用 GSAP 動畫放大縮小
-      gsap.to(hit.scale, {
+      // 使用 GSAP 動畫放大縮小（對 parent group 做動畫）
+      const target = parent || hit;
+      gsap.to(target.scale, {
         x: 1.2,
         y: 1.2,
         z: 1.2,
@@ -544,9 +875,15 @@ function onCanvasTap(event) {
         ease: 'power2.out'
       });
 
-      // 桌面預覽模式：順便開啟對應的學習歷程 / 文件 PDF（若有設定路徑）
-      if (!isARMode && typeof projectPdf === 'string' && projectPdf.length > 0) {
-        window.open(projectPdf, '_blank');
+      // 如果有文件圖片，顯示文件展示器
+      if (projectDocs && projectDocs.length > 0) {
+        console.log('[Document] 開啟文件展示：', projectId);
+        showDocumentViewer(projectDocs, ring.position);
+      } else {
+        // 桌面預覽模式：順便開啟對應的學習歷程 / 文件 PDF（若有設定路徑）
+        if (!isARMode && typeof projectPdf === 'string' && projectPdf.length > 0) {
+          window.open(projectPdf, '_blank');
+        }
       }
     }
   }

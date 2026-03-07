@@ -84,6 +84,66 @@
       text-align: center;
     }
 
+    /* 載入中動畫 */
+    #loading-spinner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top: 4px solid #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      z-index: 100;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    /* 提示文字 */
+    .hint-text {
+      position: fixed;
+      padding: 1rem 1.5rem;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      font-size: 0.9rem;
+      color: #fff;
+      text-align: center;
+      z-index: 50;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .hint-text.show {
+      opacity: 1;
+    }
+
+    #desktop-hint {
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #ar-hint {
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    #page-hint {
+      bottom: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
     /* 讓 WebGL 畫布鋪滿全螢幕 */
     canvas.webgl {
       position: fixed;
@@ -102,6 +162,14 @@
     <button id="enter-desktop-btn" style="margin-top: 0.5rem;">桌面預覽（電腦）</button>
     <div id="hint">手機可進入 AR，電腦可使用桌面預覽模式展示作品環。</div>
   </div>
+
+  <!-- 載入中動畫 -->
+  <div id="loading-spinner"></div>
+
+  <!-- 提示文字 -->
+  <div id="desktop-hint" class="hint-text">按住滑鼠左鍵以旋轉畫面</div>
+  <div id="ar-hint" class="hint-text">移動裝置以查看周圍</div>
+  <div id="page-hint" class="hint-text">點擊頁面以翻動</div>
 
     <!-- GSAP UMD 版本（使用 CDN），會掛在全域變數 gsap -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"

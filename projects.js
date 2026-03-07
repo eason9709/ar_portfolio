@@ -29,7 +29,18 @@ export const projects = [
     title: "致冷晶片",
     icon: "assets/icons/cold.png",
     video: "assets/videos/cold/demo.mp4",
-    pdf: "assets/docs/cold/portfolio.pdf"
+    pdf: "assets/docs/cold/portfolio.pdf",
+    docs: [
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0001.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0002.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0003.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0004.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0005.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0006.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0007.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0008.jpg",
+      "assets/docs/cold/致冷晶片REFRESHED_compressed (1)_page-0009.jpg"
+    ]
   },
   {
     id: "ai_agent_discord_bot",
