@@ -32,7 +32,7 @@ const tapPosition = new THREE.Vector2();
 // 半徑與圖示尺寸（公尺）
 const RING_RADIUS = 1.5;      // AR 模式中的環半徑
 const ICON_SIZE = 0.5;        // AR 模式中圖示邊長
-const AR_RING_HEIGHT = 0.2;   // AR 模式：圖示環的高度（降低到桌面高度附近）
+const AR_RING_HEIGHT = 0.8;   // AR 模式：圖示環的高度（腰部到胸部之間，方便低頭點擊）
 const DESKTOP_RADIUS = 2.0;   // 桌面預覽模式的環半徑
 const DESKTOP_ICON_SIZE = 0.7; // 桌面預覽模式中圖示邊長
 
@@ -117,16 +117,28 @@ async function startARSession() {
     await renderer.xr.setSession(session);
     console.log('[AR] renderer.xr.setSession 完成');
 
-    // WebXR 輸入：在 AR 模式下使用 XR session 的 select 事件，而不是依賴 DOM click
+    // WebXR 輸入：在 AR 模式下使用 XR session 的 select 事件
     const onXRSelect = () => {
       if (!isARMode) return;
 
-      // 第一次 select：以手機為中心放置環形，之後每幀會跟隨手機 (X,Z)
+      // 第一次 select：使用 reticle 偵測到的地板位置放置環形
       if (!hasPlacedRing) {
-        const center = new THREE.Vector3(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
-        createProjectRing(center);
-        hasPlacedRing = true;
-        return;
+        if (reticle && reticle.visible) {
+          // 使用 reticle 的位置，但高度設為 AR_RING_HEIGHT
+          const reticlePos = new THREE.Vector3();
+          reticle.getWorldPosition(reticlePos);
+          const center = new THREE.Vector3(reticlePos.x, AR_RING_HEIGHT, reticlePos.z);
+          createProjectRing(center);
+          hasPlacedRing = true;
+          reticle.visible = false; // 放置後隱藏準星
+          return;
+        } else {
+          // 備案：若沒有 reticle，使用手機前方位置
+          const center = new THREE.Vector3(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
+          createProjectRing(center);
+          hasPlacedRing = true;
+          return;
+        }
       }
 
       // 已放置環形之後的 select：用畫面中心的 ray 嘗試選取圖示
@@ -287,13 +299,12 @@ function onXRFrame(time, frame) {
     lastViewerPosition.set(p.x, p.y, p.z);
   }
 
-  // 環形：以手機 (X,Z) 為中心，高度略低（AR_RING_HEIGHT），圖示繞著轉
-  // 照抄桌面版：用時間驅動角度偏移，每幀更新每個圖示的位置與朝向
+  // 環形：固定在點擊的位置，圖示繞著環心轉
   if (ring) {
-    ring.position.set(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
-    const t = time * 0.0004; // 時間 → 角度偏移（與桌面版相同）
+    // ring.position 已經在 createProjectRing 時設定好，不再跟隨手機
+    const t = time * 0.0004; // 時間 → 角度偏移
     const count = ring.children.length || 1;
-    const centerWorld = ring.position.clone(); // 環心在世界座標
+    const centerWorld = ring.position.clone(); // 環心在世界座標（固定位置）
     ring.children.forEach((child, index) => {
       const baseAngle = (index / count) * Math.PI * 2;
       const angle = baseAngle + t;
