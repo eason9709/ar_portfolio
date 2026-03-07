@@ -286,9 +286,22 @@ function onXRFrame(time, frame) {
   }
 
   // 環形：以手機 (X,Z) 為中心，高度略低（AR_RING_HEIGHT），圖示繞著轉
+  // 照抄桌面版：用時間驅動角度偏移，每幀更新每個圖示的位置與朝向
   if (ring) {
     ring.position.set(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
-    ring.rotation.y += 0.001; // 每幀旋轉一點點
+    const t = time * 0.0004; // 時間 → 角度偏移（與桌面版相同）
+    const count = ring.children.length || 1;
+    const centerWorld = ring.position.clone(); // 環心在世界座標
+    ring.children.forEach((child, index) => {
+      const baseAngle = (index / count) * Math.PI * 2;
+      const angle = baseAngle + t;
+      const x = RING_RADIUS * Math.cos(angle);
+      const z = RING_RADIUS * Math.sin(angle);
+      child.position.set(x, 0, z);
+      child.lookAt(centerWorld);
+      // 與 createProjectRing 一致：稍微往後傾斜 45 度
+      child.rotateX(-Math.PI / 4);
+    });
   }
 
   renderer.render(scene, camera);
