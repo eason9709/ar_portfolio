@@ -23,6 +23,7 @@ let hitTestSource = null;
 let hitTestSourceRequested = false;
 let viewerSpace = null;
 let reticle = null;              // 用來顯示偵測到的地板位置（準星）
+const lastViewerPosition = new THREE.Vector3();  // 每幀更新，供環形跟隨手機
 
 // Raycaster 互動
 const raycaster = new THREE.Raycaster();
@@ -31,6 +32,7 @@ const tapPosition = new THREE.Vector2();
 // 半徑與圖示尺寸（公尺）
 const RING_RADIUS = 1.5;      // AR 模式中的環半徑
 const ICON_SIZE = 0.5;        // AR 模式中圖示邊長
+const AR_RING_HEIGHT = 0.5;   // AR 模式：圖示環的高度（略低於眼睛，約腰高）
 const DESKTOP_RADIUS = 2.0;   // 桌面預覽模式的環半徑
 const DESKTOP_ICON_SIZE = 0.7; // 桌面預覽模式中圖示邊長
 
@@ -119,25 +121,10 @@ async function startARSession() {
     const onXRSelect = () => {
       if (!isARMode) return;
 
-      // 第一次 select：放置環形（優先用 reticle，其次用相機前方備案）
+      // 第一次 select：以手機為中心放置環形，之後每幀會跟隨手機 (X,Z)
       if (!hasPlacedRing) {
-        if (reticle && reticle.visible) {
-          const reticlePosition = new THREE.Vector3();
-          reticle.getWorldPosition(reticlePosition);
-          console.log('[AR] select：使用 reticle 位置放置環形：', reticlePosition);
-          createProjectRing(reticlePosition);
-          hasPlacedRing = true;
-          return;
-        }
-
-        const camDir = new THREE.Vector3();
-        const camPos = new THREE.Vector3();
-        camera.getWorldDirection(camDir);
-        camera.getWorldPosition(camPos);
-        const distance = 1.5;
-        const fallbackPos = camPos.clone().add(camDir.multiplyScalar(distance));
-        console.log('[AR] select：無 reticle，改用相機前方位置放置環形：', fallbackPos);
-        createProjectRing(fallbackPos);
+        const center = new THREE.Vector3(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
+        createProjectRing(center);
         hasPlacedRing = true;
         return;
       }
@@ -291,8 +278,16 @@ function onXRFrame(time, frame) {
     }
   }
 
-  // 在 render loop 中讓作品環形緩慢旋轉
+  // 取得 viewer（手機）位置，供環形跟隨
+  const viewerPose = frame.getViewerPose(referenceSpace);
+  if (viewerPose) {
+    const p = viewerPose.transform.position;
+    lastViewerPosition.set(p.x, p.y, p.z);
+  }
+
+  // 環形：以手機 (X,Z) 為中心，高度略低（AR_RING_HEIGHT），圖示繞著轉
   if (ring) {
+    ring.position.set(lastViewerPosition.x, AR_RING_HEIGHT, lastViewerPosition.z);
     ring.rotation.y += 0.001; // 每幀旋轉一點點
   }
 
