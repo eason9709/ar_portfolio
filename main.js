@@ -335,7 +335,10 @@ function createProjectRing(position) {
       (err) => console.warn('載入圖示失敗：', project.icon, err)
     );
     texture.encoding = THREE.sRGBEncoding;
-    texture.flipY = false; // 與 WebGL 材質方向對齊
+    texture.flipY = false;
+    // 與桌面版相同：以中心旋轉 180 度，讓圖示在你視角下正向顯示
+    texture.center.set(0.5, 0.5);
+    texture.rotation = Math.PI;
 
     const material = new THREE.MeshBasicMaterial({
       map: texture,
