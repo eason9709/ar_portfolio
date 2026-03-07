@@ -32,7 +32,7 @@ const tapPosition = new THREE.Vector2();
 // 半徑與圖示尺寸（公尺）
 const RING_RADIUS = 1.5;      // AR 模式中的環半徑
 const ICON_SIZE = 0.5;        // AR 模式中圖示邊長
-const AR_RING_HEIGHT = 0.5;   // AR 模式：圖示環的高度（略低於眼睛，約腰高）
+const AR_RING_HEIGHT = 1.0;   // AR 模式：圖示環的高度（提高到眼睛高度附近）
 const DESKTOP_RADIUS = 2.0;   // 桌面預覽模式的環半徑
 const DESKTOP_ICON_SIZE = 0.7; // 桌面預覽模式中圖示邊長
 
@@ -216,6 +216,8 @@ function onDesktopFrame(time) {
       const z = DESKTOP_RADIUS * Math.sin(angle);
       child.position.set(x, height, z);
       child.lookAt(0, height, 0);
+      // 每幀都要重新設定傾斜，因為 lookAt 會覆蓋
+      child.rotateX(-Math.PI / 4);
     });
   }
   if (controls) {
@@ -299,7 +301,7 @@ function onXRFrame(time, frame) {
       const z = RING_RADIUS * Math.sin(angle);
       child.position.set(x, 0, z);
       child.lookAt(centerWorld);
-      // 與 createProjectRing 一致：稍微往後傾斜 45 度
+      // 每幀都要重新設定傾斜，因為 lookAt 會覆蓋
       child.rotateX(-Math.PI / 4);
     });
   }
@@ -377,7 +379,7 @@ function createDesktopRing() {
   const loader = new THREE.TextureLoader();
 
   // 桌面模式：在水平圓環上擺 8 個點，環繞你（Y 是高度）
-  const height = 0.75; // icon 高度
+  const height = 0.4; // icon 高度（降低到桌面高度附近）
   const center = new THREE.Vector3(0, height, 0);
   const count = projects.length;
 
@@ -440,8 +442,11 @@ function createDesktopRing() {
     group.add(iconMesh);
 
     group.position.set(x, height, z);
-    // 桌面模式：卡片面向圓心，你站在圓心內被環繞
-    group.lookAt(center);
+    
+    // 計算指向圓心的角度
+    const angleToCenter = Math.atan2(-x, -z);
+    // 用 YXZ 順序：先 Y 軸轉向，再 X 軸傾斜
+    group.rotation.set(-Math.PI / 4, angleToCenter + Math.PI, 0, 'YXZ');
 
     group.userData.projectId = project.id;
     group.userData.projectTitle = project.title;
