@@ -463,11 +463,10 @@ function showDocumentViewer(docPaths, position) {
   const docPosition = new THREE.Vector3();
   
   if (isARMode) {
-    // AR 模式：當前手機位置的前方 2 公尺，高度 = AR_RING_HEIGHT - 0.2
+    // AR 模式：當前手機位置的前方 2 公尺，高度提高
     const viewerPos = lastViewerPosition.clone();
     
-    // 計算手機朝向（假設朝 -Z 方向）
-    // 使用 XR camera 的方向
+    // 計算手機朝向
     const xrCamera = renderer.xr.getCamera(camera);
     const camDir = new THREE.Vector3();
     xrCamera.getWorldDirection(camDir);
@@ -476,7 +475,7 @@ function showDocumentViewer(docPaths, position) {
     
     // 文件在前方 2 公尺
     docPosition.copy(viewerPos).add(camDir.multiplyScalar(2.0));
-    docPosition.y = AR_RING_HEIGHT - 0.2;
+    docPosition.y = AR_RING_HEIGHT + 0.2; // 提高高度
   } else {
     // 桌面模式：相機前方 DESKTOP_RADIUS 距離，高度略低於環
     const camDir = new THREE.Vector3();
@@ -509,13 +508,16 @@ function showDocumentViewer(docPaths, position) {
   
   // 讓文件面向相機
   if (isARMode) {
-    // AR 模式：讓文件面向手機位置
-    pageMesh.lookAt(lastViewerPosition);
+    // AR 模式：讓文件面向手機位置（反向）
+    const lookTarget = lastViewerPosition.clone();
+    pageMesh.lookAt(lookTarget);
+    // AR 模式傾斜 45 度（pi/4）
+    pageMesh.rotateX(Math.PI / 4);
   } else {
     pageMesh.lookAt(camera.position);
+    // 桌面模式傾斜 60 度（pi/3）
+    pageMesh.rotateX(Math.PI / 3);
   }
-  // 45 度傾斜
-  pageMesh.rotateX(Math.PI / 3);
   
   documentViewer.add(pageMesh);
   scene.add(documentViewer);
