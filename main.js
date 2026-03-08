@@ -463,7 +463,7 @@ function showDocumentViewer(docPaths, position) {
   const docPosition = new THREE.Vector3();
   
   if (isARMode) {
-    // AR 模式：當前手機位置的前方 1 公尺，高度 = AR_RING_HEIGHT - 0.2
+    // AR 模式：當前手機位置的前方 2 公尺，高度 = AR_RING_HEIGHT - 0.2
     const viewerPos = lastViewerPosition.clone();
     
     // 計算手機朝向（假設朝 -Z 方向）
@@ -474,8 +474,8 @@ function showDocumentViewer(docPaths, position) {
     camDir.y = 0; // 保持水平
     camDir.normalize();
     
-    // 文件在前方 1 公尺
-    docPosition.copy(viewerPos).add(camDir.multiplyScalar(1.0));
+    // 文件在前方 2 公尺
+    docPosition.copy(viewerPos).add(camDir.multiplyScalar(2.0));
     docPosition.y = AR_RING_HEIGHT - 0.2;
   } else {
     // 桌面模式：相機前方 DESKTOP_RADIUS 距離，高度略低於環
