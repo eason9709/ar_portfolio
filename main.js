@@ -459,13 +459,24 @@ function showDocumentViewer(docPaths, position) {
   // 建立文件展示群組
   documentViewer = new THREE.Group();
   
-  // 文件位置：距離環心 RING_RADIUS（與環半徑相同），高度略低 0.2m
-  const docPosition = position.clone();
+  // 文件位置
+  const docPosition = new THREE.Vector3();
   
   if (isARMode) {
-    // AR 模式：環心前方 RING_RADIUS 距離，高度 = AR_RING_HEIGHT - 0.2
+    // AR 模式：當前手機位置的前方 1 公尺，高度 = AR_RING_HEIGHT - 0.2
+    const viewerPos = lastViewerPosition.clone();
+    
+    // 計算手機朝向（假設朝 -Z 方向）
+    // 使用 XR camera 的方向
+    const xrCamera = renderer.xr.getCamera(camera);
+    const camDir = new THREE.Vector3();
+    xrCamera.getWorldDirection(camDir);
+    camDir.y = 0; // 保持水平
+    camDir.normalize();
+    
+    // 文件在前方 1 公尺
+    docPosition.copy(viewerPos).add(camDir.multiplyScalar(1.0));
     docPosition.y = AR_RING_HEIGHT - 0.2;
-    docPosition.z += RING_RADIUS; // 往前移動環半徑距離
   } else {
     // 桌面模式：相機前方 DESKTOP_RADIUS 距離，高度略低於環
     const camDir = new THREE.Vector3();
@@ -473,7 +484,7 @@ function showDocumentViewer(docPaths, position) {
     const camPos = new THREE.Vector3();
     camera.getWorldPosition(camPos);
     docPosition.copy(camPos).add(camDir.multiplyScalar(DESKTOP_RADIUS));
-    docPosition.y = 0.4 - 0.1; // 環高度 0.4，文件略低 0.2
+    docPosition.y = 0.4 - 0.1; // 環高度 0.4，文件略低 0.1
   }
   
   documentViewer.position.copy(docPosition);
@@ -497,7 +508,10 @@ function showDocumentViewer(docPaths, position) {
   pageMesh.name = 'documentPage';
   
   // 讓文件面向相機
-  if (!isARMode) {
+  if (isARMode) {
+    // AR 模式：讓文件面向手機位置
+    pageMesh.lookAt(lastViewerPosition);
+  } else {
     pageMesh.lookAt(camera.position);
   }
   // 45 度傾斜
